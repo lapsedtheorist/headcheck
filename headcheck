@@ -1,0 +1,298 @@
+#!/bin/bash
+
+CURL=`which curl`
+SQLITE=`which sqlite3`
+
+NUM=10
+PAUSE=1
+TIMEOUT=10
+
+CRONJOB=false
+DATABASE=false
+
+LIST=''
+URLFILE=''
+
+LOGFILE="`basename $0`.log"
+DATABASEFILE="`basename $0`.db"
+USERAGENT="headcheck (website status monitor)"
+ALERT=''
+IPS=''
+
+function usage {
+cat << EOF
+HEADCHECK: a HTTP headers requester for monitoring websites
+Ben Carpenter
+2011-2012
+
+	Usage: `basename $0` [options] [-f file|url[ url[ ...]]|-]
+
+HEADCHECK runs a header check on the URL hosted at the address
+or addresses passed in as a file, as space separated arguments,
+or as a space separated list over standard input.  Various items
+of data and durations are recorded.  Included is a log file that
+records the last check results and optionally a database that
+logs the results from every run.
+
+For each check the following information is presented in comma
+separated format:
+
+    url                 URL requested
+    datetime            Date and time of request
+    ip                  IP address found from host lookup
+    http_code           HTTP code from headers
+    redirect_url        Redirect location from a HTTP 3xx code,
+                        if present
+    time_total          Total time taken for the header request
+                        to complete
+    time_namelookup     Time from start until name resolving
+                        completed
+    time_connect        Time from start until TCP connection to
+                        the host completed
+    time_pretransfer    Time from start until file transfer is
+                        about to begin
+    time_starttransfer  Time from start until first byte was
+                        about to be transferred
+
+This information is written to the console and stored in the log
+as one line per URL. If the -c option is used, the output to
+the console is suppressed. The log file has a backup denoted by
+a ~ extension; the difference between the current and last log
+at any given time is the last check performed.
+
+OPTIONS
+
+    -a email  Send an alert to this email address 
+              when a change in status code or IP 
+              address is detected
+    -c        Run with cron compatibility
+              (suppress normal output)
+    -d        Use database
+    -D file   Use database file, implies -d
+              (default $DATABASEFILE)
+    -f file   Select URLs at random from file
+    -h        Show this message
+    -i ip,ip  Send alerts when some change happens 
+              and the IP address appears in this 
+              comma-separated list
+    -l file   Log file to use
+              (default $LOGFILE)
+    -n N      With -f, select N URLs from file
+              (default $NUM)
+    -p N      Pause for N seconds between each check
+              (default $PAUSE)
+    -t N      Timeout each check at N seconds
+              (default $TIMEOUT)
+    -u agent  User agent string to use for curl
+	-         Read URL list from standard input
+
+EOF
+}
+
+function init_database {
+	if [ ! -x $SQLITE ]; then
+		echo Error: sqlite not found
+		exit 2
+	fi
+	if [ ! -f $DATABASEFILE ]; then
+		echo 'CREATE TABLE log (url text, datetime text, ip text, http_code integer, redirect_url text, time_total real, time_namelookup real, time_connect real, time_pretransfer real, time_starttransfer real);' | $SQLITE $DATABASEFILE
+		if [ ! -f $DATABASEFILE ]; then
+			echo Error: database file $DATABASEFILE not found
+			echo and could not be created
+			exit 2
+		fi
+	fi
+}
+
+while getopts  "a:cdD:f:hi:l:n:p:t:u:" flag
+do
+	case $flag in
+		a)
+			ALERT=$OPTARG
+		;;
+		c)
+			CRONJOB=true
+		;;
+		D)
+			DATABASE=true
+			DATABASEFILE=$OPTARG
+			init_database
+		;;
+		d)
+			DATABASE=true
+			init_database
+		;;
+		f)
+			URLFILE=$OPTARG
+			if [ ! -f $URLFILE ]; then
+				echo Error: URLs file $URLFILE not found
+				exit 2
+			fi
+		;;
+		h)
+			usage
+			exit 0
+		;;
+		i)
+			IPS=$OPTARG
+		;;
+		l)
+			LOGFILE=$OPTARG
+		;;
+		n)
+			NUM=$OPTARG
+			if [[ ! ($NUM =~ ^[0-9]+$) ]]; then
+				echo Error: Non-integer number of URLs to check
+				exit 2
+			fi
+		;;
+		p)
+			PAUSE=$OPTARG
+			if [[ ! ($PAUSE =~ ^[0-9]+$) ]]; then
+				echo Error: Non-integer number of seconds to pause between checks
+				exit 2
+			fi
+		;;
+		t)
+			TIMEOUT=$OPTARG
+			if [[ ! ($TIMEOUT =~ ^[0-9]+$) ]]; then
+				echo Error: Non-integer number of seconds for timeout
+				exit 2
+			fi
+		;;
+		u)
+			USERAGENT=$OPTARG
+		;;
+		?)
+			# Error: unknown option (getopts writes this message for us)
+			usage
+			exit 2
+		;;
+	esac
+done
+shift $(($OPTIND - 1))
+
+if [ ! -x $CURL ]; then
+	echo Error: curl not found
+	exit 2
+fi
+
+LIST=""
+if [ ! -z $URLFILE ]; then
+	if [ -x shuf ]; then
+		LIST=`shuf -n $NUM $URLFILE`
+	else
+		LIST=`awk 'BEGIN { srand() } { print rand() "\t" $0 }' $URLFILE | sort -n | cut -f2- | head -n $NUM`
+	fi
+else
+	LIST=$@
+	if [ "$LIST" == "-" ]; then
+		LIST=""
+		while read stdinline; do
+			LIST=$LIST' '$stdinline
+		done < /dev/stdin
+	fi
+	if [ "$LIST" == "" ]; then
+		echo "Error: No URLs file or URL argument supplied (for help use $0 -h)"
+		exit 1
+	fi
+fi
+
+if [ ! -f $LOGFILE ]; then
+	touch $LOGFILE
+	if [ ! -f $LOGFILE ]; then
+		echo Error: log file $LOGFILE
+		echo not found and could not be created
+		exit 2
+	fi
+fi 
+
+for URL in $LIST; do
+	DOMAIN=${URL##*://}
+	DOMAIN=${DOMAIN%%/*}
+	# If using OpenDNS, an A record is returned for a domain that doesn't
+	# resolve, so we should check for NXDOMAIN first before looking for the IP
+	# address in the output
+	HOSTLOOKUP=`host $DOMAIN`
+	HOSTNOTFOUND=`echo $HOSTLOOKUP | grep 'NXDOMAIN'`
+	if [ -z "$HOSTNOTFOUND" ]; then
+		# this also covers the case of an alias
+		IP=`echo $HOSTLOOKUP | grep -o 'has address [0-9.]*' | head -n1 | awk '{ print $3 }'`
+		if [ -z "$IP" ]; then
+			IP='timeout'
+		fi
+	else
+		IP='unresolved'
+	fi
+	STATUS=`$CURL -I -s -m $TIMEOUT -o /dev/null \
+		-w "$URL,$(date +'%Y-%m-%d %H:%M:%S %z'),$IP,%{http_code},%{redirect_url},%{time_total},%{time_namelookup},%{time_connect},%{time_pretransfer},%{time_starttransfer}" \
+		-A "$USERAGENT" \
+		$URL`
+	LASTSTATUS=`grep "^$URL,.*\$" $LOGFILE`
+	if [ -z "$LASTSTATUS" ]; then
+		echo "$STATUS" >> $LOGFILE
+		# If we're configured to send alerts, send one
+		if [ ! -z "$ALERT" ]; then
+			# Check the current IP address falls in the list, or if there's no list
+			# then send the alert anyway
+			IPCHECK=true
+			if [ ! -z "$IPS" ]; then
+				IPCHECK=`expr ",$IPS," : ".*,$IP,"`
+			fi
+			
+			if [ "$IPCHECK" != "0" ] ; then
+				MESSAGE="Please be advised, the URL $URL ($IP) has been added to the monitoring list:\n"
+				MESSAGE=$MESSAGE"\n\tnow "`echo $STATUS | awk 'BEGIN { FS="," } { printf "\t%s\t%s\t[%s]\n", $4, $5, $2 }'`
+				SUBJECT="Now monitoring $URL"
+				echo -e $MESSAGE | mail -s "$SUBJECT" $ALERT
+			fi
+		fi
+	else
+		sed -i~ "s~^$URL,.*$~$STATUS~" $LOGFILE
+		# If we're configured to send alerts, then perform some checks against
+		# what the status looked like last time and report any changes
+		if [ ! -z "$ALERT" ]; then
+			
+			LASTIP=`echo $LASTSTATUS | cut -d, -f3`
+			
+			# Check the current or last IP address falls in the list, or if
+			# there's no list then check anyway
+			IPCHECK=true
+			if [ ! -z "$IPS" ]; then
+				IPCHECK=`expr ",$IPS," : ".*,$IP,"`
+				if [ "$IPCHECK" == "0" ]; then
+					IPCHECK=`expr ",$IPS," : ".*,$LASTIP,"`
+				fi
+			fi
+			
+			if [ "$IPCHECK" != "0" ] ; then
+				# Check HTTP status code
+				HTTPCODE=`echo $STATUS | cut -d, -f4`
+				LASTHTTPCODE=`echo $LASTSTATUS | cut -d, -f4`
+				if [ "$HTTPCODE" != "$LASTHTTPCODE" ]; then
+					MESSAGE="Please be advised, the URL $URL ($IP) has changed status since it was last checked:\n"
+					MESSAGE=$MESSAGE"\n\twas"`echo $LASTSTATUS | awk 'BEGIN { FS="," } { printf "\t%s\t%s\t[%s]\n", $4, $5, $2 }'`
+					MESSAGE=$MESSAGE"\n\tnow"`echo $STATUS | awk 'BEGIN { FS="," } { printf "\t%s\t%s\t[%s]\n", $4, $5, $2 }'`
+					SUBJECT="Status code change from $LASTHTTPCODE to $HTTPCODE for $URL"
+					echo -e $MESSAGE | mail -s "$SUBJECT" $ALERT
+				fi
+
+				# Check IP address
+				if [ "$IP" != "$LASTIP" ]; then
+					MESSAGE="Please be advised, the URL $URL has changed IP address since it was last checked:\n"
+					MESSAGE=$MESSAGE"\n\twas"`echo $LASTSTATUS | awk 'BEGIN { FS="," } { printf "\t%s\t[%s]\n", $3, $2 }'`
+					MESSAGE=$MESSAGE"\n\tnow"`echo $STATUS | awk 'BEGIN { FS="," } { printf "\t%s\t[%s]\n", $3, $2 }'`
+					SUBJECT="IP address change from $LASTIP to $IP for $URL"
+					echo -e $MESSAGE | mail -s "$SUBJECT" $ALERT
+				fi
+			fi
+		fi
+	fi	
+	if $DATABASE ; then
+		echo "INSERT INTO log (url, datetime, ip, http_code, redirect_url, time_total, time_namelookup, time_connect, time_pretransfer, time_starttransfer) VALUES ('${STATUS//,/', '}');" | $SQLITE $DATABASEFILE
+	fi
+	if ! $CRONJOB ; then
+		echo $STATUS
+	fi
+	sleep $PAUSE
+done
