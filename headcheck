@@ -285,11 +285,11 @@ for URL in $LIST; do
 		fi
 	fi	
 	if $DATABASE ; then
-		echo "INSERT INTO log (url, datetime, ip, http_code, redirect_url, time_total, time_namelookup, time_connect, time_pretransfer, time_starttransfer) VALUES ('${STATUS//,/', '}');" | $SQLITE $DATABASEFILE
+		until echo "INSERT INTO log (url, datetime, ip, http_code, redirect_url, time_total, time_namelookup, time_connect, time_pretransfer, time_starttransfer) VALUES ('${STATUS//,/', '}');" | $SQLITE $DATABASEFILE > /dev/null 2>&1; do sleep 2; done
 	fi
 	if ! $CRONJOB ; then
 		echo $STATUS
 	fi
-	) & 2>&1
+	) &
 done
 wait
