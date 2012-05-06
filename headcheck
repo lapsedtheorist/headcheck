@@ -4,7 +4,6 @@ CURL=`which curl`
 SQLITE=`which sqlite3`
 
 NUM=10
-PAUSE=1
 TIMEOUT=10
 
 CRONJOB=false
@@ -79,8 +78,6 @@ OPTIONS
               (default $LOGFILE)
     -n N      With -f, select N URLs from file
               (default $NUM)
-    -p N      Pause for N seconds between each check
-              (default $PAUSE)
     -t N      Timeout each check at N seconds
               (default $TIMEOUT)
     -u agent  User agent string to use for curl
@@ -104,7 +101,7 @@ function init_database {
 	fi
 }
 
-while getopts  "a:cdD:f:hi:l:n:p:t:u:" flag
+while getopts  "a:cdD:f:hi:l:n:t:u:" flag
 do
 	case $flag in
 		a)
@@ -143,13 +140,6 @@ do
 			NUM=$OPTARG
 			if [[ ! ($NUM =~ ^[0-9]+$) ]]; then
 				echo Error: Non-integer number of URLs to check
-				exit 2
-			fi
-		;;
-		p)
-			PAUSE=$OPTARG
-			if [[ ! ($PAUSE =~ ^[0-9]+$) ]]; then
-				echo Error: Non-integer number of seconds to pause between checks
 				exit 2
 			fi
 		;;
@@ -208,6 +198,9 @@ if [ ! -f $LOGFILE ]; then
 fi 
 
 for URL in $LIST; do
+	# For more efficient checking, we can background each single check into a
+	# subshell and let it run by itself. At the end, we just wait for everything to finish
+	(
 	DOMAIN=${URL##*://}
 	DOMAIN=${DOMAIN%%/*}
 	# If using OpenDNS, an A record is returned for a domain that doesn't
@@ -297,5 +290,5 @@ for URL in $LIST; do
 	if ! $CRONJOB ; then
 		echo $STATUS
 	fi
-	sleep $PAUSE
+	) & 2>&1
 done
