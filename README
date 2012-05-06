@@ -56,10 +56,8 @@ OPTIONS
               (default headcheck.log)
     -n N      With -f, select N URLs from file
               (default 10)
-    -p N      Pause for N seconds between each check
-              (default 1)
     -t N      Timeout each check at N seconds
               (default 10)
     -u agent  User agent string to use for curl
-	-         Read URL list from standard input
+    -         Read URL list from standard input
 

@@ -81,7 +81,7 @@ OPTIONS
     -t N      Timeout each check at N seconds
               (default $TIMEOUT)
     -u agent  User agent string to use for curl
-	-         Read URL list from standard input
+    -         Read URL list from standard input
 
 EOF
 }
@@ -292,3 +292,4 @@ for URL in $LIST; do
 	fi
 	) & 2>&1
 done
+wait
