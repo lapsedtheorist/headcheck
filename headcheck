@@ -221,7 +221,8 @@ for URL in $LIST; do
 		-w "$URL,$(date +'%Y-%m-%d %H:%M:%S %z'),$IP,%{http_code},%{redirect_url},%{time_total},%{time_namelookup},%{time_connect},%{time_pretransfer},%{time_starttransfer}" \
 		-A "$USERAGENT" \
 		$URL`
-	LASTSTATUS=`grep "^$URL,.*\$" $LOGFILE`
+	# When checking for the previous status, we should wait until the file is available
+	until LASTSTATUS=`grep "^$URL,.*\$" $LOGFILE 2>/dev/null`; do sleep 2; done
 	if [ -z "$LASTSTATUS" ]; then
 		echo "$STATUS" >> $LOGFILE
 		# If we're configured to send alerts, send one
