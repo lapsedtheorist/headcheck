@@ -242,7 +242,7 @@ for URL in $LIST; do
 			fi
 		fi
 	else
-		sed -i~ "s~^$URL,.*$~$STATUS~" $LOGFILE
+		until sed -i~ "s~^$URL,.*$~$STATUS~" $LOGFILE > /dev/null 2>&1; do sleep 2; done
 		# If we're configured to send alerts, then perform some checks against
 		# what the status looked like last time and report any changes
 		if [ ! -z "$ALERT" ]; then
