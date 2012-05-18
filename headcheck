@@ -221,9 +221,16 @@ for URL in $LIST; do
 		-w "$URL,$(date +'%Y-%m-%d %H:%M:%S %z'),$IP,%{http_code},%{redirect_url},%{time_total},%{time_namelookup},%{time_connect},%{time_pretransfer},%{time_starttransfer}" \
 		-A "$USERAGENT" \
 		$URL`
-	# When checking for the previous status, we should wait until the file is available
-	until LASTSTATUS=`grep "^$URL,.*\$" $LOGFILE 2>/dev/null`; do sleep 2; done
-	if [ -z "$LASTSTATUS" ]; then
+	# When checking for the previous status, we should wait for a maximum of 32
+	# seconds until the file is available
+	DELAY=1
+	until LASTSTATUS=`grep "^$URL,.*\$" $LOGFILE 2>/dev/null`; do
+		if [[ $? -le 1 || $(( DELAY=$(($DELAY*2)) )) -gt 16 ]]; then
+			break
+		fi
+		sleep $DELAY
+	done
+	if [ -z ".$LASTSTATUS" ]; then
 		echo "$STATUS" >> $LOGFILE
 		# If we're configured to send alerts, send one
 		if [ ! -z "$ALERT" ]; then
@@ -243,7 +250,13 @@ for URL in $LIST; do
 			fi
 		fi
 	else
-		until sed -i~ "s~^$URL,.*$~$STATUS~" $LOGFILE > /dev/null 2>&1; do sleep 2; done
+		DELAY=1
+		until sed -i~ "s~^$URL,.*$~$STATUS~" $LOGFILE > /dev/null 2>&1; do
+			if [[ $(( DELAY=$(($DELAY*2)) )) -gt 16 ]]; then
+				break
+			fi
+			sleep $DELAY
+		done
 		# If we're configured to send alerts, then perform some checks against
 		# what the status looked like last time and report any changes
 		if [ ! -z "$ALERT" ]; then
@@ -286,7 +299,13 @@ for URL in $LIST; do
 		fi
 	fi	
 	if $DATABASE ; then
-		until echo "INSERT INTO log (url, datetime, ip, http_code, redirect_url, time_total, time_namelookup, time_connect, time_pretransfer, time_starttransfer) VALUES ('${STATUS//,/', '}');" | $SQLITE $DATABASEFILE > /dev/null 2>&1; do sleep 2; done
+		DELAY=1
+		until $SQLITE $DATABASEFILE "INSERT INTO log (url, datetime, ip, http_code, redirect_url, time_total, time_namelookup, time_connect, time_pretransfer, time_starttransfer) VALUES ('${STATUS//,/', '}');" > /dev/null 2>&1; do 
+			if [[ $(( DELAY=$(($DELAY*2)) )) -gt 16 ]]; then
+				break
+			fi
+			sleep $DELAY
+		done
 	fi
 	if ! $CRONJOB ; then
 		echo $STATUS
