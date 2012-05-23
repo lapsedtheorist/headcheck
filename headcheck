@@ -230,7 +230,7 @@ for URL in $LIST; do
 		fi
 		sleep $DELAY
 	done
-	if [ -z ".$LASTSTATUS" ]; then
+	if [ -z "$LASTSTATUS" ]; then
 		echo "$STATUS" >> $LOGFILE
 		# If we're configured to send alerts, send one
 		if [ ! -z "$ALERT" ]; then
