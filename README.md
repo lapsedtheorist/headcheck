@@ -1,5 +1,7 @@
 HEADCHECK: a HTTP headers requester for monitoring websites
-Ben Carpenter
+===========================================================
+
+Ben Carpenter  
 2011-2012
 
 	Usage: headcheck [options] [-f file|url[ url[ ...]]|-]
@@ -37,7 +39,8 @@ the console is suppressed. The log file has a backup denoted by
 a ~ extension; the difference between the current and last log
 at any given time is the last check performed.
 
-OPTIONS
+Options
+-------
 
     -a email  Send an alert to this email address 
               when a change in status code or IP 
