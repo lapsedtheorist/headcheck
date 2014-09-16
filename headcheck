@@ -217,7 +217,7 @@ for URL in $LIST; do
 	else
 		IP='unresolved'
 	fi
-	STATUS=`$CURL -I -s -m $TIMEOUT -o /dev/null \
+	STATUS=`$CURL -I -s -m $TIMEOUT --header 'Connection: close' -o /dev/null \
 		-w "$URL,$(date +'%Y-%m-%d %H:%M:%S %z'),$IP,%{http_code},%{redirect_url},%{time_total},%{time_namelookup},%{time_connect},%{time_pretransfer},%{time_starttransfer}" \
 		-A "$USERAGENT" \
 		$URL`
