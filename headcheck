@@ -203,24 +203,11 @@ for URL in $LIST; do
 	(
 	DOMAIN=${URL##*://}
 	DOMAIN=${DOMAIN%%/*}
-	# If using OpenDNS, an A record is returned for a domain that doesn't
-	# resolve, so we should check for NXDOMAIN first before looking for the IP
-	# address in the output
-	HOSTLOOKUP=`host $DOMAIN`
-	HOSTNOTFOUND=`echo $HOSTLOOKUP | grep 'NXDOMAIN'`
-	if [ -z "$HOSTNOTFOUND" ]; then
-		# this also covers the case of an alias
-		IP=`echo $HOSTLOOKUP | grep -o 'has address [0-9.]*' | head -n1 | awk '{ print $3 }'`
-		if [ -z "$IP" ]; then
-			IP='timeout'
-		fi
-	else
-		IP='unresolved'
-	fi
 	STATUS=`$CURL -I -s -m $TIMEOUT --header 'Connection: close' -o /dev/null \
-		-w "$URL,$(date +'%Y-%m-%d %H:%M:%S %z'),$IP,%{http_code},%{redirect_url},%{time_total},%{time_namelookup},%{time_connect},%{time_pretransfer},%{time_starttransfer}" \
+		-w "$URL,$(date +'%Y-%m-%d %H:%M:%S %z'),%{remote_ip},%{http_code},%{redirect_url},%{time_total},%{time_namelookup},%{time_connect},%{time_pretransfer},%{time_starttransfer}" \
 		-A "$USERAGENT" \
 		$URL`
+	IP=`echo "$STATUS" | cut -d, -f3`
 	# When checking for the previous status, we should wait for a maximum of 32
 	# seconds until the file is available
 	DELAY=1

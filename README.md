@@ -2,7 +2,7 @@ HEADCHECK: a HTTP headers requester for monitoring websites
 ===========================================================
 
 Ben Carpenter  
-2011-2012
+2011-2014
 
 	Usage: headcheck [options] [-f file|url[ url[ ...]]|-]
 
@@ -64,3 +64,8 @@ Options
     -u agent  User agent string to use for curl
     -         Read URL list from standard input
 
+Dependencies
+------------
+
+cURL 7.29 or later for requests, optionally SQLite 3 for database
+storage features
