@@ -92,7 +92,7 @@ function init_database {
 		exit 2
 	fi
 	if [ ! -f $DATABASEFILE ]; then
-		echo 'CREATE TABLE log (url text, datetime text, ip text, http_code integer, redirect_url text, time_total real, time_namelookup real, time_connect real, time_pretransfer real, time_starttransfer real);' | $SQLITE $DATABASEFILE
+		echo 'CREATE TABLE log (url text, datetime text, ip text, http_code integer, redirect_url text, time_total real, time_namelookup real, time_connect real, time_pretransfer real, time_starttransfer real); CREATE INDEX url ON log (url);' | $SQLITE $DATABASEFILE
 		if [ ! -f $DATABASEFILE ]; then
 			echo Error: database file $DATABASEFILE not found
 			echo and could not be created

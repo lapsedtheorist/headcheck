@@ -2,7 +2,7 @@ HEADCHECK: a HTTP headers requester for monitoring websites
 ===========================================================
 
 Ben Carpenter  
-2011-2014
+2011-2015
 
 	Usage: headcheck [options] [-f file|url[ url[ ...]]|-]
 
