@@ -208,6 +208,9 @@ for URL in $LIST; do
 		-A "$USERAGENT" \
 		$URL`
 	IP=`echo "$STATUS" | cut -d, -f3`
+	if [[ "$IP" == "" ]]; then
+		IP="unknown"
+	fi
 	# When checking for the previous status, we should wait for a maximum of 32
 	# seconds until the file is available
 	DELAY=1
@@ -261,25 +264,28 @@ for URL in $LIST; do
 			fi
 			
 			if [ "$IPCHECK" != "0" ] ; then
-				# Check HTTP status code
 				HTTPCODE=`echo "$STATUS" | cut -d, -f4`
 				LASTHTTPCODE=`echo "$LASTSTATUS" | cut -d, -f4`
-				if [ "$HTTPCODE" != "$LASTHTTPCODE" ]; then
-					MESSAGE="Please be advised, the URL $URL ($IP) has changed status since it was last checked:\n"
-					MESSAGE=$MESSAGE"\n\twas"`echo "$LASTSTATUS" | awk 'BEGIN { FS="," } { printf "\t%s\t%s\t[%s]", $4, $5, $2 }'`
-					MESSAGE=$MESSAGE"\n\tnow"`echo "$STATUS" | awk 'BEGIN { FS="," } { printf "\t%s\t%s\t[%s]", $4, $5, $2 }'`
-					MESSAGE=$MESSAGE"\n\nData now:\n"`echo "$STATUS" |  awk 'BEGIN { FS="," } { printf "\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s", $7, "namelookup;", $8, "connect;", $9, "pretransfer;", $10, "starttransfer;", $6, "total" }'`
-					SUBJECT="Status code change from $LASTHTTPCODE to $HTTPCODE for $URL"
-					echo -e $MESSAGE | mail -s "$SUBJECT" $ALERT
-				fi
-
+				MESSAGE=""
 				# Check IP address
 				if [ "$IP" != "$LASTIP" ]; then
-					MESSAGE="Please be advised, the URL $URL has changed IP address since it was last checked:\n"
-					MESSAGE=$MESSAGE"\n\twas"`echo "$LASTSTATUS" | awk 'BEGIN { FS="," } { printf "\t%s\t[%s]", $3, $2 }'`
-					MESSAGE=$MESSAGE"\n\tnow"`echo "$STATUS" | awk 'BEGIN { FS="," } { printf "\t%s\t[%s]", $3, $2 }'`
-					MESSAGE=$MESSAGE"\n\nData now:\n"`echo "$STATUS" |  awk 'BEGIN { FS="," } { printf "\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s", $7, "namelookup;", $8, "connect;", $9, "pretransfer;", $10, "starttransfer;", $6, "total" }'`
-					SUBJECT="IP address change from $LASTIP to $IP for $URL"
+					MESSAGE=$MESSAGE"Please be advised, the URL $URL has changed IP address since it was last checked:\n"
+					MESSAGE=$MESSAGE"\n\twas"`echo "$LASTSTATUS" | awk 'BEGIN { FS="," } { printf "\t'\''%s'\''\t[%s]", $3, $2 }'`
+					MESSAGE=$MESSAGE"\n\tnow"`echo "$STATUS" | awk 'BEGIN { FS="," } { printf "\t'\''%s'\''\t[%s]", $3, $2 }'`
+					MESSAGE=$MESSAGE"\n\n"
+				fi
+
+				# Check HTTP status code
+				if [ "$HTTPCODE" != "$LASTHTTPCODE" ]; then
+					MESSAGE=$MESSAGE"Please be advised, the URL $URL ($IP) has changed status since it was last checked:\n"
+					MESSAGE=$MESSAGE"\n\twas"`echo "$LASTSTATUS" | awk 'BEGIN { FS="," } { printf "\t'\''%s'\''\t%s\t[%s]", $4, $5, $2 }'`
+					MESSAGE=$MESSAGE"\n\tnow"`echo "$STATUS" | awk 'BEGIN { FS="," } { printf "\t'\''%s'\''\t%s\t[%s]", $4, $5, $2 }'`
+					MESSAGE=$MESSAGE"\n\n"
+				fi
+
+				if [[ "$MESSAGE" != "" ]]; then
+					MESSAGE=$MESSAGE"Data now:\n"`echo "$STATUS" |  awk 'BEGIN { FS="," } { printf "\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s", $7, "namelookup;", $8, "connect;", $9, "pretransfer;", $10, "starttransfer;", $6, "total" }'`
+					SUBJECT="URL $URL changed ('$LASTIP' to '$IP', status '$LASTHTTPCODE' to '$HTTPCODE')"
 					echo -e $MESSAGE | mail -s "$SUBJECT" $ALERT
 				fi
 			fi
