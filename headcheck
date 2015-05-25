@@ -287,7 +287,7 @@ for URL in $LIST; do
 	fi	
 	if $DATABASE ; then
 		DELAY=1
-		until $SQLITE $DATABASEFILE "INSERT INTO log (url, datetime, ip, http_code, redirect_url, time_total, time_namelookup, time_connect, time_pretransfer, time_starttransfer) VALUES ('${STATUS//,/', '}');" > /dev/null 2>&1; do 
+		until $SQLITE $DATABASEFILE "INSERT INTO log (url, datetime, ip, http_code, redirect_url, time_total, time_namelookup, time_connect, time_pretransfer, time_starttransfer) VALUES ('${STATUS//,/"', '"}');" > /dev/null 2>&1; do 
 			if [[ $(( DELAY=$(($DELAY*2)) )) -gt 16 ]]; then
 				break
 			fi
