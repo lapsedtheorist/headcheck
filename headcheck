@@ -215,7 +215,7 @@ for URL in $LIST; do
 	# seconds until the file is available
 	DELAY=1
 	until LASTSTATUS=`grep "^$URL,.*\$" $LOGFILE 2>/dev/null`; do
-		if [[ $? -le 1 || $(( DELAY=$(($DELAY*2)) )) -gt 16 ]]; then
+		if [[ $? -le 1 || $(( DELAY=$(($DELAY + ($RANDOM % 5) )) )) -gt 16 ]]; then
 			break
 		fi
 		sleep $DELAY
@@ -242,7 +242,7 @@ for URL in $LIST; do
 	else
 		DELAY=1
 		until sed -i~ "s~^$URL,.*$~$STATUS~" $LOGFILE > /dev/null 2>&1; do
-			if [[ $(( DELAY=$(($DELAY*2)) )) -gt 16 ]]; then
+			if [[ $(( DELAY=$(($DELAY + ($RANDOM % 5) )) )) -gt 16 ]]; then
 				break
 			fi
 			sleep $DELAY
@@ -294,7 +294,7 @@ for URL in $LIST; do
 	if $DATABASE ; then
 		DELAY=1
 		until $SQLITE $DATABASEFILE "INSERT INTO log (url, datetime, ip, http_code, redirect_url, time_total, time_namelookup, time_connect, time_pretransfer, time_starttransfer) VALUES ('${STATUS//,/"', '"}');" > /dev/null 2>&1; do 
-			if [[ $(( DELAY=$(($DELAY*2)) )) -gt 16 ]]; then
+			if [[ $(( DELAY=$(($DELAY + ($RANDOM % 5) )) )) -gt 16 ]]; then
 				break
 			fi
 			sleep $DELAY
