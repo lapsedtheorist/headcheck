@@ -241,7 +241,7 @@ for URL in $LIST; do
 		fi
 	else
 		DELAY=1
-		until sed -i~ "s~^$URL,.*$~$STATUS~" $LOGFILE > /dev/null 2>&1; do
+		until sed -i~ "s~^$URL,.*$~${STATUS//&/\\&}~" $LOGFILE > /dev/null 2>&1; do
 			if [[ $(( DELAY=$(($DELAY + ($RANDOM % 5) )) )) -gt 16 ]]; then
 				break
 			fi
